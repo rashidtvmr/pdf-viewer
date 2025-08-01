@@ -2,161 +2,76 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>PDF Viewer with Fallbacks</title>
+  <title>Native PDF Viewer Timing</title>
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
+    body {
       font-family: sans-serif;
+      padding: 1rem;
     }
-    #loader {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      font-size: 18px;
+    #log {
+      background: #f0f0f0;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      white-space: pre-wrap;
+      font-family: monospace;
     }
-    #viewer, #fallbackCanvas {
+    embed {
       width: 100%;
-      height: 100vh;
-      border: none;
+      height: 600px;
+      border: 1px solid #ccc;
     }
   </style>
 </head>
 <body>
+  <h1>PDF Embed with Timing Info</h1>
+  <div id="log">Starting test...</div>
+  <embed id="pdfEmbed" type="application/pdf" />
 
-<div id="loader">🔄 Loading PDF...</div>
-<div id="viewer" style="display: none;"></div>
+  <script>
+    const pdfURL = 'https://rashidtvmrpersonalbucket.s3.eu-north-1.amazonaws.com/rashidester2.pdf'; // Change this to your actual PDF path
+    const embed = document.getElementById('pdfEmbed');
+    const logDiv = document.getElementById('log');
 
-<script>
-  const viewer = document.getElementById('viewer');
-  const loader = document.getElementById('loader');
+    const log = [];
+    const startTime = performance.now();
 
-  const params = new URLSearchParams(window.location.search);
-  const file = params.get('file');
-
-  if (!file) {
-    loader.textContent = "❌ No PDF file provided in URL. Use ?file=your.pdf";
-    throw new Error("No file param found.");
-  }
-
-  // Step 1: Check if PDF rendering in iframe is supported
-  function canEmbedPDF() {
-    const iframe = document.createElement('iframe');
-    iframe.type = 'application/pdf';
-    return !!iframe.type;
-  }
-
-  // Step 2: Try to load iframe directly
-  function tryEmbedPDFDirectly(url) {
-    return new Promise((resolve, reject) => {
-      const iframe = document.createElement('iframe');
-      iframe.id = 'native-pdf';
-      iframe.src = url;
-      iframe.onload = () => resolve(iframe);
-      iframe.onerror = () => reject('iframe failed');
-      iframe.style.border = "none";
-      iframe.style.width = "100%";
-      iframe.style.height = "100%";
-
-      // Small timeout in case iframe fails silently
-      setTimeout(() => {
-        if (iframe.contentDocument?.body?.childElementCount === 0) {
-          reject("iframe loaded but empty");
-        }
-      }, 2000);
-
-      viewer.appendChild(iframe);
-    });
-  }
-
-  // Step 3: Fallback to Mozilla hosted PDF.js viewer
-  function tryEmbedPDFJSViewer(file) {
-    return new Promise((resolve, reject) => {
-      const iframe = document.createElement('iframe');
-      iframe.src = `https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(file)}`;
-      iframe.onload = () => resolve(iframe);
-      iframe.onerror = () => reject('Mozilla viewer failed');
-      iframe.style.border = "none";
-      iframe.style.width = "100%";
-      iframe.style.height = "100%";
-
-      viewer.innerHTML = '';
-      viewer.appendChild(iframe);
-    });
-  }
-
-  // Step 4: Ultimate fallback → load PDF.js from CDN and render directly
-  async function loadAndRenderWithPDFJS(file) {
-    viewer.innerHTML = '';
-    const canvas = document.createElement('canvas');
-    canvas.id = 'fallbackCanvas';
-    viewer.appendChild(canvas);
-
-    const script = document.createElement('script');
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-    document.body.appendChild(script);
-
-    await new Promise(res => script.onload = res);
-
-    const pdfjsLib = window['pdfjs-dist/build/pdf'];
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-
-    try {
-      const loadingTask = pdfjsLib.getDocument(file);
-      const pdf = await loadingTask.promise;
-      const page = await pdf.getPage(1);
-
-      const scale = 1.5;
-      const viewport = page.getViewport({ scale });
-
-      const context = canvas.getContext('2d');
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
-
-      const renderContext = {
-        canvasContext: context,
-        viewport: viewport
-      };
-
-      await page.render(renderContext).promise;
-    } catch (err) {
-      loader.textContent = "❌ Failed to load PDF even with PDF.js";
+    function addLog(msg) {
+      const t = (performance.now() - startTime).toFixed(2);
+      log.push(`[${t}ms] ${msg}`);
+      logDiv.textContent = log.join('\n');
     }
-  }
 
-  // Main logic
-  async function init() {
-    try {
-      if (canEmbedPDF()) {
-        await tryEmbedPDFDirectly(file);
-        loader.style.display = "none";
-        viewer.style.display = "block";
-        return;
+    addLog('⏳ PDF load initiated');
+    embed.src = pdfURL;
+
+    let renderTimeout;
+    let unsupportedTimeout;
+
+    // Detect render success by checking dimensions after short delay
+    renderTimeout = setTimeout(() => {
+      if (embed.clientHeight > 100 && embed.clientWidth > 100) {
+        addLog('✅ PDF appears to have rendered successfully');
+      } else {
+        addLog('⚠️ Render incomplete or failed to detect rendering visually');
       }
+    }, 1000); // Wait 1s after embed to allow rendering
 
-      throw "Direct PDF iframe not supported";
-    } catch {
-      try {
-        await tryEmbedPDFJSViewer(file);
-        loader.style.display = "none";
-        viewer.style.display = "block";
-        return;
-      } catch {
-        try {
-          await loadAndRenderWithPDFJS(file);
-          loader.style.display = "none";
-          viewer.style.display = "block";
-        } catch (err) {
-          loader.textContent = "❌ All PDF viewing methods failed.";
-        }
+    // Detect failure (unsupported) within 2s if nothing loads
+    unsupportedTimeout = setTimeout(() => {
+      if (embed.clientHeight === 0 || embed.clientWidth === 0) {
+        addLog('❌ Browser does NOT support native PDF viewing');
+      } else {
+        addLog('✅ Native PDF viewer supported (not perfect, but visible)');
       }
-    }
-  }
+    }, 2000); // 2s wait time before deciding it's unsupported
 
-  init();
-</script>
-
+    // Listen for onerror — rarely fires for PDF, but just in case
+    embed.onerror = function () {
+      clearTimeout(renderTimeout);
+      clearTimeout(unsupportedTimeout);
+      addLog('❌ onError: browser failed to load PDF natively');
+    };
+  </script>
 </body>
 </html>
