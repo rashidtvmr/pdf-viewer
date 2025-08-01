@@ -2,112 +2,73 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>PDF Viewer Support & Render Timing</title>
+  <title>PDF Viewer Support Test</title>
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 1rem;
-    }
-    .log-box {
-      background: #f9f9f9;
-      padding: 1rem;
-      margin-bottom: 1.5rem;
-      border-left: 5px solid #ccc;
-      border-radius: 8px;
-      font-family: monospace;
-      white-space: pre-wrap;
-    }
-    embed, iframe {
-      width: 100%;
-      height: 400px;
-      border: 1px solid #aaa;
-      margin-bottom: 2rem;
-    }
+    body { font-family: sans-serif; padding: 20px; }
+    iframe, embed { width: 100%; height: 500px; border: 1px solid #ccc; margin-top: 20px; }
+    pre { background: #f4f4f4; padding: 10px; border-radius: 4px; }
   </style>
-
-  <!-- ✅ Modernizr CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/modernizr/2.8.3/modernizr.min.js"></script>
 </head>
 <body>
-  <h1>PDF Native Viewer Render + Modernizr Check</h1>
-
-  <h2>🧠 Modernizr PDF Support Check</h2>
-  <div id="log-modernizr" class="log-box">Checking...</div>
-
-  <h2>1. &lt;embed&gt; PDF Viewer</h2>
-  <div id="log-embed" class="log-box">Initializing...</div>
-  <embed id="pdfEmbed" type="application/pdf" />
-
-  <h2>2. &lt;iframe&gt; PDF Viewer</h2>
-  <div id="log-iframe" class="log-box">Initializing...</div>
-  <iframe id="pdfIframe" title="PDF Viewer"></iframe>
+  <h2>PDF Viewer Support Detection</h2>
+  <p>Testing PDF: <code>rashidester2.pdf</code></p>
+  <div id="log"></div>
 
   <script>
-    const PDF_URL = "https://rashidtvmrpersonalbucket.s3.eu-north-1.amazonaws.com/rashidester2.pdf"
+    const PDF_URL = "https://rashidtvmrpersonalbucket.s3.eu-north-1.amazonaws.com/rashidester2.pdf";
+    const log = (msg) => {
+      document.getElementById("log").innerHTML += `<pre>${msg}</pre>`;
+    };
+
     const startTime = performance.now();
 
-    const embed = document.getElementById('pdfEmbed');
-    const iframe = document.getElementById('pdfIframe');
-
-    const logModernizr = document.getElementById('log-modernizr');
-    const logEmbed = document.getElementById('log-embed');
-    const logIframe = document.getElementById('log-iframe');
-
-    const createLogger = (logBox) => {
-      const log = [];
-      return (msg) => {
-        const time = (performance.now() - startTime).toFixed(2);
-        log.push(`[${time}ms] ${msg}`);
-        logBox.textContent = log.join('\n');
-      };
-    };
-
-    const logM = createLogger(logModernizr);
-    const logE = createLogger(logEmbed);
-    const logI = createLogger(logIframe);
-
-    // ===== ✅ Modernizr PDF Support Check =====
-    setTimeout(() => {
-      const supported = Modernizr.pdf;
-      logM(`Modernizr check: ${supported ? '✅ PDF supported natively' : '❌ PDF not supported natively'}`);
-    }, 0); // Ensure Modernizr has loaded
-
-    // ===== 📄 <embed> PDF Test =====
-    logE('⏳ <embed> load started');
-    embed.src = PDF_URL;
-
-    let embedRenderCheck = setTimeout(() => {
-      if (embed.clientHeight > 50 && embed.clientWidth > 50) {
-        logE('✅ <embed> appears to be rendered');
-      } else {
-        logE('❌ <embed> failed or not visible (zero size)');
-      }
-    }, 1000);
-
-    embed.onerror = () => {
-      clearTimeout(embedRenderCheck);
-      logE('❌ <embed> onError triggered — load failed');
-    };
-
-    // ===== 📄 <iframe> PDF Test =====
-    logI('⏳ <iframe> load started');
+    // 1. Using iframe
+    const iframeStart = performance.now();
+    const iframe = document.createElement("iframe");
     iframe.src = PDF_URL;
-
     iframe.onload = () => {
-      logI('✅ <iframe> onLoad triggered — PDF loaded');
+      const iframeEnd = performance.now();
+      log(`✅ iframe rendered PDF in ${Math.round(iframeEnd - iframeStart)} ms`);
     };
-
     iframe.onerror = () => {
-      logI('❌ <iframe> onError triggered — load failed');
+      const iframeFail = performance.now();
+      log(`❌ iframe failed to load PDF in ${Math.round(iframeFail - iframeStart)} ms`);
+    };
+    document.body.appendChild(iframe);
+
+    // 2. Using embed
+    const embedStart = performance.now();
+    const embed = document.createElement("embed");
+    embed.src = PDF_URL;
+    embed.type = "application/pdf";
+    embed.onerror = () => {
+      const embedFail = performance.now();
+      log(`❌ embed failed to load PDF in ${Math.round(embedFail - embedStart)} ms`);
+    };
+    embed.onload = () => {
+      const embedEnd = performance.now();
+      log(`✅ embed rendered PDF in ${Math.round(embedEnd - embedStart)} ms`);
+    };
+    document.body.appendChild(embed);
+
+    // 3. Using Modernizr PDF check
+    const modernizrPDFSupport = Modernizr.pdf;
+    log(`📦 Modernizr: PDF support = ${modernizrPDFSupport}`);
+
+    // 4. navigator.pdfViewerEnabled
+    const customPDFViewerCheck = () => {
+      if ('pdfViewerEnabled' in navigator) {
+        log(`🔍 navigator.pdfViewerEnabled = ${navigator.pdfViewerEnabled}`);
+      } else {
+        log(`⚠️ navigator.pdfViewerEnabled not available in this browser`);
+      }
     };
 
-    let iframeRenderCheck = setTimeout(() => {
-      if (iframe.clientHeight > 50 && iframe.clientWidth > 50) {
-        logI('✅ <iframe> is visible — rendering likely');
-      } else {
-        logI('❌ <iframe> failed or invisible (zero size)');
-      }
-    }, 1000);
+    customPDFViewerCheck();
+
+    const totalEnd = performance.now();
+    log(`⏱️ Total script + DOM setup time: ${Math.round(totalEnd - startTime)} ms`);
   </script>
 </body>
 </html>
