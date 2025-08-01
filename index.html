@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>PDF Render Timing Test (Embed + Iframe)</title>
+  <title>PDF Viewer Support & Render Timing</title>
   <style>
     body {
       font-family: sans-serif;
@@ -24,9 +24,15 @@
       margin-bottom: 2rem;
     }
   </style>
+
+  <!-- ✅ Modernizr CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/modernizr/2.8.3/modernizr.min.js"></script>
 </head>
 <body>
-  <h1>PDF Native Viewer Render Timing</h1>
+  <h1>PDF Native Viewer Render + Modernizr Check</h1>
+
+  <h2>🧠 Modernizr PDF Support Check</h2>
+  <div id="log-modernizr" class="log-box">Checking...</div>
 
   <h2>1. &lt;embed&gt; PDF Viewer</h2>
   <div id="log-embed" class="log-box">Initializing...</div>
@@ -37,11 +43,13 @@
   <iframe id="pdfIframe" title="PDF Viewer"></iframe>
 
   <script>
-    const PDF_URL = "https://rashidtvmrpersonalbucket.s3.eu-north-1.amazonaws.com/rashidester2.pdf"
-
+    const PDF_URL = './file.pdf'; // Replace with your own PDF file (same-origin)
     const startTime = performance.now();
+
     const embed = document.getElementById('pdfEmbed');
     const iframe = document.getElementById('pdfIframe');
+
+    const logModernizr = document.getElementById('log-modernizr');
     const logEmbed = document.getElementById('log-embed');
     const logIframe = document.getElementById('log-iframe');
 
@@ -54,43 +62,50 @@
       };
     };
 
+    const logM = createLogger(logModernizr);
     const logE = createLogger(logEmbed);
     const logI = createLogger(logIframe);
 
-    // ===== <embed> Test =====
-    logE('⏳ <embed> Load started');
+    // ===== ✅ Modernizr PDF Support Check =====
+    setTimeout(() => {
+      const supported = Modernizr.pdf;
+      logM(`Modernizr check: ${supported ? '✅ PDF supported natively' : '❌ PDF not supported natively'}`);
+    }, 0); // Ensure Modernizr has loaded
+
+    // ===== 📄 <embed> PDF Test =====
+    logE('⏳ <embed> load started');
     embed.src = PDF_URL;
 
-    let embedCheck = setTimeout(() => {
+    let embedRenderCheck = setTimeout(() => {
       if (embed.clientHeight > 50 && embed.clientWidth > 50) {
         logE('✅ <embed> appears to be rendered');
       } else {
-        logE('❌ <embed> failed or unsupported (zero size)');
+        logE('❌ <embed> failed or not visible (zero size)');
       }
     }, 1000);
 
     embed.onerror = () => {
-      clearTimeout(embedCheck);
-      logE('❌ <embed> onError fired — failed to load');
+      clearTimeout(embedRenderCheck);
+      logE('❌ <embed> onError triggered — load failed');
     };
 
-    // ===== <iframe> Test =====
-    logI('⏳ <iframe> Load started');
+    // ===== 📄 <iframe> PDF Test =====
+    logI('⏳ <iframe> load started');
     iframe.src = PDF_URL;
 
     iframe.onload = () => {
-      logI('✅ <iframe> onLoad fired — iframe has loaded the PDF URL');
+      logI('✅ <iframe> onLoad triggered — PDF loaded');
     };
 
     iframe.onerror = () => {
-      logI('❌ <iframe> onError fired — failed to load');
+      logI('❌ <iframe> onError triggered — load failed');
     };
 
-    let iframeCheck = setTimeout(() => {
+    let iframeRenderCheck = setTimeout(() => {
       if (iframe.clientHeight > 50 && iframe.clientWidth > 50) {
-        logI('✅ <iframe> is visible (may be rendering PDF)');
+        logI('✅ <iframe> is visible — rendering likely');
       } else {
-        logI('❌ <iframe> failed or unsupported (zero size)');
+        logI('❌ <iframe> failed or invisible (zero size)');
       }
     }, 1000);
   </script>
