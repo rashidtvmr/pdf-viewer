@@ -2,76 +2,97 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Native PDF Viewer Timing</title>
+  <title>PDF Render Timing Test (Embed + Iframe)</title>
   <style>
     body {
       font-family: sans-serif;
       padding: 1rem;
     }
-    #log {
-      background: #f0f0f0;
+    .log-box {
+      background: #f9f9f9;
       padding: 1rem;
+      margin-bottom: 1.5rem;
+      border-left: 5px solid #ccc;
       border-radius: 8px;
-      margin-bottom: 1rem;
-      white-space: pre-wrap;
       font-family: monospace;
+      white-space: pre-wrap;
     }
-    embed {
+    embed, iframe {
       width: 100%;
-      height: 600px;
-      border: 1px solid #ccc;
+      height: 400px;
+      border: 1px solid #aaa;
+      margin-bottom: 2rem;
     }
   </style>
 </head>
 <body>
-  <h1>PDF Embed with Timing Info</h1>
-  <div id="log">Starting test...</div>
+  <h1>PDF Native Viewer Render Timing</h1>
+
+  <h2>1. &lt;embed&gt; PDF Viewer</h2>
+  <div id="log-embed" class="log-box">Initializing...</div>
   <embed id="pdfEmbed" type="application/pdf" />
 
+  <h2>2. &lt;iframe&gt; PDF Viewer</h2>
+  <div id="log-iframe" class="log-box">Initializing...</div>
+  <iframe id="pdfIframe" title="PDF Viewer"></iframe>
+
   <script>
-    const pdfURL = 'https://rashidtvmrpersonalbucket.s3.eu-north-1.amazonaws.com/rashidester2.pdf'; // Change this to your actual PDF path
-    const embed = document.getElementById('pdfEmbed');
-    const logDiv = document.getElementById('log');
+    const PDF_URL = './file.pdf'; // Replace with your PDF path (same-origin preferred)
 
-    const log = [];
     const startTime = performance.now();
+    const embed = document.getElementById('pdfEmbed');
+    const iframe = document.getElementById('pdfIframe');
+    const logEmbed = document.getElementById('log-embed');
+    const logIframe = document.getElementById('log-iframe');
 
-    function addLog(msg) {
-      const t = (performance.now() - startTime).toFixed(2);
-      log.push(`[${t}ms] ${msg}`);
-      logDiv.textContent = log.join('\n');
-    }
-
-    addLog('⏳ PDF load initiated');
-    embed.src = pdfURL;
-
-    let renderTimeout;
-    let unsupportedTimeout;
-
-    // Detect render success by checking dimensions after short delay
-    renderTimeout = setTimeout(() => {
-      if (embed.clientHeight > 100 && embed.clientWidth > 100) {
-        addLog('✅ PDF appears to have rendered successfully');
-      } else {
-        addLog('⚠️ Render incomplete or failed to detect rendering visually');
-      }
-    }, 1000); // Wait 1s after embed to allow rendering
-
-    // Detect failure (unsupported) within 2s if nothing loads
-    unsupportedTimeout = setTimeout(() => {
-      if (embed.clientHeight === 0 || embed.clientWidth === 0) {
-        addLog('❌ Browser does NOT support native PDF viewing');
-      } else {
-        addLog('✅ Native PDF viewer supported (not perfect, but visible)');
-      }
-    }, 2000); // 2s wait time before deciding it's unsupported
-
-    // Listen for onerror — rarely fires for PDF, but just in case
-    embed.onerror = function () {
-      clearTimeout(renderTimeout);
-      clearTimeout(unsupportedTimeout);
-      addLog('❌ onError: browser failed to load PDF natively');
+    const createLogger = (logBox) => {
+      const log = [];
+      return (msg) => {
+        const time = (performance.now() - startTime).toFixed(2);
+        log.push(`[${time}ms] ${msg}`);
+        logBox.textContent = log.join('\n');
+      };
     };
+
+    const logE = createLogger(logEmbed);
+    const logI = createLogger(logIframe);
+
+    // ===== <embed> Test =====
+    logE('⏳ <embed> Load started');
+    embed.src = PDF_URL;
+
+    let embedCheck = setTimeout(() => {
+      if (embed.clientHeight > 50 && embed.clientWidth > 50) {
+        logE('✅ <embed> appears to be rendered');
+      } else {
+        logE('❌ <embed> failed or unsupported (zero size)');
+      }
+    }, 1000);
+
+    embed.onerror = () => {
+      clearTimeout(embedCheck);
+      logE('❌ <embed> onError fired — failed to load');
+    };
+
+    // ===== <iframe> Test =====
+    logI('⏳ <iframe> Load started');
+    iframe.src = PDF_URL;
+
+    iframe.onload = () => {
+      logI('✅ <iframe> onLoad fired — iframe has loaded the PDF URL');
+    };
+
+    iframe.onerror = () => {
+      logI('❌ <iframe> onError fired — failed to load');
+    };
+
+    let iframeCheck = setTimeout(() => {
+      if (iframe.clientHeight > 50 && iframe.clientWidth > 50) {
+        logI('✅ <iframe> is visible (may be rendering PDF)');
+      } else {
+        logI('❌ <iframe> failed or unsupported (zero size)');
+      }
+    }, 1000);
   </script>
 </body>
 </html>
